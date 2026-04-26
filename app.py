@@ -1,6 +1,6 @@
 import streamlit as st
+import tensorflow as tf
 import numpy as np
-import tflite_runtime.interpreter as tflite
 from PIL import Image
 import pickle
 
@@ -10,8 +10,8 @@ st.set_page_config(page_title="Potato Disease Scanner", page_icon="🥔")
 # --- LOAD ASSETS ---
 @st.cache_resource
 def load_assets():
-    # Corrected for tflite-runtime
-    interpreter = tflite.Interpreter(model_path="potato_model.tflite")
+    # We use the full tf.lite here because it supports newer opcodes
+    interpreter = tf.lite.Interpreter(model_path="potato_model.tflite")
     interpreter.allocate_tensors()
     with open('class_names.pkl', 'rb') as f:
         class_names = pickle.load(f)
@@ -19,7 +19,7 @@ def load_assets():
 
 interpreter, class_names = load_assets()
 
-def predict_tflite(img_array):
+def predict(img_array):
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
     img_array = img_array.astype(np.float32)
@@ -29,7 +29,6 @@ def predict_tflite(img_array):
 
 # --- UI ---
 st.title("🥔 Potato Leaf Disease Detection")
-st.write("Upload a leaf photo for diagnosis.")
 
 uploaded_file = st.file_uploader("Choose a leaf image...", type=["jpg", "jpeg", "png"])
 
@@ -37,21 +36,16 @@ if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption='Uploaded Leaf Image', use_container_width=True)
     
-    # Preprocessing
     img_resized = image.resize((256, 256))
     img_array = np.array(img_resized)
     img_array = np.expand_dims(img_array, axis=0)
 
-    # Prediction
-    predictions = predict_tflite(img_array)
+    predictions = predict(img_array)
+    score = tf.nn.softmax(predictions[0])
     
-    # Manual Softmax (replaces tf.nn.softmax)
-    exp_preds = np.exp(predictions[0] - np.max(predictions[0]))
-    prob = exp_preds / exp_preds.sum()
-    
-    result = class_names[np.argmax(prob)]
-    confidence = 100 * np.max(prob)
+    result = class_names[np.argmax(score)]
+    confidence = 100 * np.max(score)
 
     st.divider()
-    st.subheader(f"Result: {result}")
+    st.success(f"### Result: {result}")
     st.write(f"**Confidence:** {confidence:.2f}%")
