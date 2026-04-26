@@ -1,6 +1,6 @@
 import streamlit as st
 import numpy as np
-import tensorflow as tf
+import tflite_runtime.interpreter as tflite
 from PIL import Image
 import pickle
 
@@ -10,15 +10,13 @@ st.set_page_config(page_title="Potato Disease Scanner", page_icon="🥔")
 # --- LOAD ASSETS ---
 @st.cache_resource
 def load_assets():
-    # Load TFLite model and allocate tensors
-    interpreter = tf.lite.Interpreter(model_path="potato_model.tflite")
+    # Notice we use tflite.Interpreter here
+    interpreter = tflite.Interpreter(model_path="potato_model.tflite")
     interpreter.allocate_tensors()
     
     with open('class_names.pkl', 'rb') as f:
         class_names = pickle.load(f)
     return interpreter, class_names
-
-interpreter, class_names = load_assets()
 
 # --- HELPER FUNCTION FOR TFLITE PREDICTION ---
 def predict_tflite(img_array):
