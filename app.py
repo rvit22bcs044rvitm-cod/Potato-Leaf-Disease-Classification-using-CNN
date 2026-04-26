@@ -13,7 +13,6 @@ def load_assets():
     # Corrected for tflite-runtime
     interpreter = tflite.Interpreter(model_path="potato_model.tflite")
     interpreter.allocate_tensors()
-    
     with open('class_names.pkl', 'rb') as f:
         class_names = pickle.load(f)
     return interpreter, class_names
@@ -46,7 +45,7 @@ if uploaded_file is not None:
     # Prediction
     predictions = predict_tflite(img_array)
     
-    # Manual Softmax (since we aren't using full tf)
+    # Manual Softmax (replaces tf.nn.softmax)
     exp_preds = np.exp(predictions[0] - np.max(predictions[0]))
     prob = exp_preds / exp_preds.sum()
     
