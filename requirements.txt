@@ -1,3 +1,1 @@
-streamlit
 tflite-runtime
-Pillow
