@@ -1,0 +1,56 @@
+import streamlit as st
+import tensorflow as tf
+import numpy as np
+from PIL import Image
+import pickle
+
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="Potato Disease Scanner", page_icon="🥔")
+
+# --- LOAD ASSETS ---
+@st.cache_resource
+def load_assets():
+    model = tf.keras.models.load_model('potato_model.keras')
+    with open('class_names.pkl', 'rb') as f:
+        class_names = pickle.load(f)
+    return model, class_names
+
+model, class_names = load_assets()
+
+# --- UI ---
+st.title("🥔 Potato Leaf Disease Detection")
+st.write("Upload a photo of a potato leaf to identify if it is healthy or diseased.")
+
+uploaded_file = st.file_uploader("Choose a leaf image...", type=["jpg", "jpeg", "png"])
+
+if uploaded_file is not None:
+    # Display the uploaded image
+    image = Image.open(uploaded_file)
+    st.image(image, caption='Uploaded Leaf Image', use_container_width=True)
+    
+    # Preprocessing
+    st.write("Analyzing...")
+    img_resized = image.resize((256, 256))
+    img_array = tf.keras.preprocessing.image.img_to_array(img_resized)
+    img_array = tf.expand_dims(img_array, 0) # Create a batch
+
+    # Prediction
+    predictions = model.predict(img_array)
+    score = tf.nn.softmax(predictions[0])
+    
+    result = class_names[np.argmax(score)]
+    confidence = 100 * np.max(score)
+
+    # Display Result
+    st.divider()
+    if "healthy" in result.lower():
+        st.success(f"### Result: {result}")
+    else:
+        st.error(f"### Result: {result}")
+        
+    st.write(f"**Confidence Level:** {confidence:.2f}%")
+    
+    if "Early_blight" in result:
+        st.info("Advice: Apply fungicides and ensure proper crop rotation.")
+    elif "Late_blight" in result:
+        st.warning("Advice: High risk! Remove infected plants and apply late-blight specific treatments.")
