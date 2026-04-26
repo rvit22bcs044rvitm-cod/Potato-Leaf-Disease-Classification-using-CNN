@@ -10,7 +10,7 @@ st.set_page_config(page_title="Potato Disease Scanner", page_icon="🥔")
 # --- LOAD ASSETS ---
 @st.cache_resource
 def load_assets():
-    # Notice we use tflite.Interpreter here
+    # Corrected for tflite-runtime
     interpreter = tflite.Interpreter(model_path="potato_model.tflite")
     interpreter.allocate_tensors()
     
@@ -18,56 +18,41 @@ def load_assets():
         class_names = pickle.load(f)
     return interpreter, class_names
 
-# --- HELPER FUNCTION FOR TFLITE PREDICTION ---
+interpreter, class_names = load_assets()
+
 def predict_tflite(img_array):
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
-    
-    # Ensure input is float32 (standard for TFLite)
     img_array = img_array.astype(np.float32)
-    
     interpreter.set_tensor(input_details[0]['index'], img_array)
     interpreter.invoke()
-    
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-    return output_data
+    return interpreter.get_tensor(output_details[0]['index'])
 
 # --- UI ---
 st.title("🥔 Potato Leaf Disease Detection")
-st.write("Upload a photo of a potato leaf to identify if it is healthy or diseased.")
+st.write("Upload a leaf photo for diagnosis.")
 
 uploaded_file = st.file_uploader("Choose a leaf image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Display the uploaded image
     image = Image.open(uploaded_file)
     st.image(image, caption='Uploaded Leaf Image', use_container_width=True)
     
     # Preprocessing
-    st.write("Analyzing...")
     img_resized = image.resize((256, 256))
     img_array = np.array(img_resized)
-    img_array = np.expand_dims(img_array, axis=0) # Add batch dimension
+    img_array = np.expand_dims(img_array, axis=0)
 
-    # Prediction using TFLite logic
+    # Prediction
     predictions = predict_tflite(img_array)
     
-    # Apply softmax to get probabilities
-    score = tf.nn.softmax(predictions[0])
+    # Manual Softmax (since we aren't using full tf)
+    exp_preds = np.exp(predictions[0] - np.max(predictions[0]))
+    prob = exp_preds / exp_preds.sum()
     
-    result = class_names[np.argmax(score)]
-    confidence = 100 * np.max(score)
+    result = class_names[np.argmax(prob)]
+    confidence = 100 * np.max(prob)
 
-    # Display Result
     st.divider()
-    if "healthy" in result.lower():
-        st.success(f"### Result: {result}")
-    else:
-        st.error(f"### Result: {result}")
-        
-    st.write(f"**Confidence Level:** {confidence:.2f}%")
-    
-    if "Early_blight" in result:
-        st.info("Advice: Apply fungicides and ensure proper crop rotation.")
-    elif "Late_blight" in result:
-        st.warning("Advice: High risk! Remove infected plants and apply late-blight specific treatments.")
+    st.subheader(f"Result: {result}")
+    st.write(f"**Confidence:** {confidence:.2f}%")
