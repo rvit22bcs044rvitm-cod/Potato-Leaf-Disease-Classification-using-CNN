@@ -10,7 +10,7 @@ st.set_page_config(page_title="Potato Disease Scanner", page_icon="🥔")
 # --- LOAD ASSETS ---
 @st.cache_resource
 def load_assets():
-    # We use the full tf.lite here because it supports newer opcodes
+    # Using full tf.lite.Interpreter (Stable & robust)
     interpreter = tf.lite.Interpreter(model_path="potato_model.tflite")
     interpreter.allocate_tensors()
     with open('class_names.pkl', 'rb') as f:
@@ -29,6 +29,7 @@ def predict(img_array):
 
 # --- UI ---
 st.title("🥔 Potato Leaf Disease Detection")
+st.write("Upload a leaf photo for a professional diagnosis.")
 
 uploaded_file = st.file_uploader("Choose a leaf image...", type=["jpg", "jpeg", "png"])
 
@@ -36,16 +37,21 @@ if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption='Uploaded Leaf Image', use_container_width=True)
     
+    # Preprocessing
     img_resized = image.resize((256, 256))
     img_array = np.array(img_resized)
     img_array = np.expand_dims(img_array, axis=0)
 
+    # Prediction
     predictions = predict(img_array)
-    score = tf.nn.softmax(predictions[0])
     
-    result = class_names[np.argmax(score)]
-    confidence = 100 * np.max(score)
+    # Manual Softmax logic
+    exp_preds = np.exp(predictions[0] - np.max(predictions[0]))
+    prob = exp_preds / exp_preds.sum()
+    
+    result = class_names[np.argmax(prob)]
+    confidence = 100 * np.max(prob)
 
     st.divider()
     st.success(f"### Result: {result}")
-    st.write(f"**Confidence:** {confidence:.2f}%")
+    st.write(f"**Confidence Level:** {confidence:.2f}%")
